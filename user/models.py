@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser,BaseUserManager
+from django.utils.text import slugify
 
 class CustomUserManager(BaseUserManager):
     def create_user(self,email,username,password=None):
@@ -26,7 +27,7 @@ class CustomUser(AbstractBaseUser):
     email = models.EmailField(unique=True)
     username=models.CharField(max_length=33,blank=True)
     password=models.CharField(max_length=200)
-    is_active=models.BooleanField(default=False)
+    is_active=models.BooleanField(default=True)
     is_superuser=models.BooleanField(default=False)
     date_joined=models.DateField(auto_now_add=True)
     last_login=models.DateField(auto_now=True)
@@ -51,3 +52,19 @@ class UserProfile(models.Model):
         return self.user.email
     
     
+class Blog(models.Model):
+    user=models.ForeignKey(CustomUser,on_delete=models.CASCADE,related_name='blogs')
+    title=models.CharField(max_length=255)
+    description = models.TextField()
+    media = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    slug = models.SlugField(unique=True, blank=True)  
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)  
+        super().save(*args, **kwargs)
+        
+    def __str__(self):
+        return self.title

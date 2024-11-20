@@ -10,7 +10,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)  
     class Meta:
         model = CustomUser
-        fields= ["email","username","password","confirm_password"]
+        fields = ["email","username","password","confirm_password"]
         
     def validate(self, data):
         """Validate email and username are unique and passwords match."""
@@ -37,17 +37,16 @@ class UserLoginSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     
     class Meta:
-        fields =["email","password"]
+        model = CustomUser
+        fields = ["email","password"]
         
     def validate(self,data):
         """Validating is the user exists or not."""
         
-        try:
-            user = authenticate(email=data['email'])
-        except CustomUser.DoesNotExist:
-            raise serializers.ValidationError({"details":"The email doesn't exist."})
-        if not user.check_password(data['password']):
-            raise serializers.ValidationError({"details":"Incorrect password."})
+        user = authenticate(username=data['email'], password=data['password'])
+        print('the user is :',user)
+        if user is None:
+            raise serializers.ValidationError({"details": "Invalid email or password."})
         if not user.is_active:
             raise serializers.ValidationError({"detail": "This user is blocked. Please contact support."})
         
@@ -60,4 +59,10 @@ class UserLoginSerializer(serializers.ModelSerializer):
             'refresh_token': str(refresh)
         }
     
+
+class UserHomeSerializer(serializers.ModelSerializer):
+    """Serializer for displaying email and username on the homepage."""
     
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'email']

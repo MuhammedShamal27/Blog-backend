@@ -7,9 +7,11 @@ class EmailBackend(ModelBackend):
 
         try:
             user = UserModel.objects.get(email=username)
+            print(f"User found: {user}")
         except UserModel.DoesNotExist:
             return None
         
         if user.check_password(password):
             return user
+        print("Incorrect password.")
         return None

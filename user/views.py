@@ -1,8 +1,8 @@
 from . serializers import *
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView,ListAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework import status
 from django.db import DatabaseError
 
@@ -36,6 +36,7 @@ class UserRegisterView(CreateAPIView):
         
 class UserLoginView(APIView):
     """API endpoint for user login."""
+    permission_classes = [AllowAny]
     
     def post(self, request, *args, **kwargs):
         serializer = UserLoginSerializer(data=request.data)
@@ -54,3 +55,12 @@ class UserLoginView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     
+class UserHomePageView(APIView):
+    """API endpoint to display email and username of all users."""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        serializer = UserHomeSerializer(user)
+        return Response(serializer.data)
