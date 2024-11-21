@@ -1,7 +1,10 @@
-from . models import CustomUser
+from . models import CustomUser,Blog,UserProfile
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -66,3 +69,177 @@ class UserHomeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['username', 'email']
+        
+        
+class BlogCreateSerializer(serializers.ModelSerializer):
+    """Serializer for Blog model."""
+    user = serializers.StringRelatedField(read_only=True) 
+    slug = serializers.SlugField(read_only=True)  
+    
+    class Meta:
+        model = Blog
+        fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+        read_only_fields = ['created_at', 'updated_at', 'slug']
+        
+    def validate_title(self, value):
+        """Ensure title is not empty."""
+        if not value.strip():
+            raise serializers.ValidationError("Title cannot be empty.")
+        return value
+
+    def validate_description(self, value):
+        """Ensure description is not empty."""
+        if not value.strip():
+            raise serializers.ValidationError("Description cannot be empty.")
+        return value
+    
+    def validate_media(self, value):
+        """Validate that media is a list of valid URLs."""
+        url_validator = URLValidator()
+        if isinstance(value, str):  
+            value = [value]
+        elif not isinstance(value, list): 
+            raise serializers.ValidationError("Media should be a list of URLs.")
+        
+        for url in value:
+            if not isinstance(url, str):
+                raise serializers.ValidationError("Each media item must be a valid URL string.")
+            try:
+                url_validator(url)  
+            except ValidationError:
+                raise serializers.ValidationError(f"Invalid URL: {url}")
+        return value
+
+    def create(self, validated_data):
+        """Create a new blog for the logged-in user."""
+        validated_data['user'] = self.context['request'].user  
+        return super().create(validated_data)
+
+class BlogUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating an existing blog."""
+    slug = serializers.SlugField(read_only=True)  
+    user = serializers.StringRelatedField(read_only=True)  
+
+    class Meta:
+        model = Blog
+        fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+        read_only_fields = ['created_at', 'updated_at', 'slug']
+        
+    def validate_title(self, value):
+        """Ensure title is not empty."""
+        if not value.strip():
+            raise serializers.ValidationError("Title cannot be empty.")
+        return value
+
+    def validate_description(self, value):
+        """Ensure description is not empty."""
+        if not value.strip():
+            raise serializers.ValidationError("Description cannot be empty.")
+        return value
+
+    def validate_media(self, value):
+        """Validate that media is a list of valid URLs."""
+        url_validator = URLValidator()
+        if isinstance(value, str):  
+            value = [value]
+        elif not isinstance(value, list):
+            raise serializers.ValidationError("Media should be a list of URLs.")
+        
+        for url in value:
+            if not isinstance(url, str):
+                raise serializers.ValidationError("Each media item must be a valid URL string.")
+            try:
+                url_validator(url)
+            except ValidationError:
+                raise serializers.ValidationError(f"Invalid URL: {url}")
+        return value
+
+
+class BlogDeleteSerializer(serializers.ModelSerializer):
+    """Serializer for deleting an existing blog."""
+    class Meta:
+        model = Blog
+        fields = ['id', 'title', 'user']  
+        read_only_fields = ['id', 'title', 'user']
+        
+
+class BlogListSerializer(serializers.ModelSerializer):
+    """Serializer for listing blog titles, one image, and a short description."""
+    first_image = serializers.SerializerMethodField()
+    short_description = serializers.SerializerMethodField()
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_profile_picture = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Blog
+        fields = ['id', 'title', 'first_image', 'short_description', 'user_name', 'user_profile_picture']
+    
+    def get_first_image(self, obj):
+        """Return the first image URL from the media field (if available)."""
+        if isinstance(obj.media, list) and obj.media:
+            return obj.media[0]  
+        return None
+
+    def get_short_description(self, obj):
+        description_words = obj.description.split()  
+        short_desc = ' '.join(description_words[:17])  
+        return short_desc
+    
+    def get_user_profile_picture(self, obj):
+        """Retrieve the user's profile picture."""
+        profile = UserProfile.objects.filter(user=obj.user).first()
+        return profile.profile_picture if profile else None
+    
+class BlogDetailSerializer(serializers.ModelSerializer):
+    """Serializer to return the details of a blog."""
+    slug = serializers.SlugField(read_only=True)
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_profile_picture = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Blog
+        fields = ['id', 'user_name', 'user_profile_picture', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+        read_only_fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+
+    def get_user_profile_picture(self, obj):
+        """Retrieve the user's profile picture."""
+        profile = UserProfile.objects.filter(user=obj.user).first()
+        return profile.profile_picture if profile else None
+        
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile."""
+    email = serializers.EmailField(required=True, validators=[validate_email])
+    username = serializers.CharField(max_length=33, required=False)
+    profile_picture = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ['email', 'username', 'profile_picture']
+    
+    def validate_username(self, value):
+        """Ensure username is not empty and unique."""
+        if not value.strip():
+            raise serializers.ValidationError("Username cannot be empty.")
+        if CustomUser.objects.exclude(pk=self.instance.pk).filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+    
+    def validate_email(self, value):
+        """Ensure email is unique."""
+        if CustomUser.objects.exclude(pk=self.instance.pk).filter(email=value).exists():
+            raise serializers.ValidationError("This email is already taken.")
+        return value
+
+    def update(self, instance, validated_data):
+        """Update the user and profile information."""
+        instance.email = validated_data.get('email', instance.email)
+        instance.username = validated_data.get('username', instance.username)
+        instance.save()
+        
+        profile_data = validated_data.get('profile_picture', None)
+        if profile_data:
+            profile, _ = UserProfile.objects.get_or_create(user=instance)
+            profile.profile_picture = profile_data
+            profile.save()
+        
+        return instance
