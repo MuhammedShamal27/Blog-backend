@@ -64,22 +64,34 @@ class UserLoginSerializer(serializers.ModelSerializer):
     
 
 class UserHomeSerializer(serializers.ModelSerializer):
-    """Serializer for displaying email and username on the homepage."""
+    """Serializer for displaying email, username and profile picture on the homepage."""
+    profile_picture = serializers.SerializerMethodField()
     
     class Meta:
         model = CustomUser
-        fields = ['username', 'email']
+        fields = ['username', 'email', 'profile_picture']
+
+    def get_profile_picture(self, obj):
+        """Retrieve the user's profile picture from the UserProfile model."""
+        profile = obj.User_profile.first() 
+        return profile.profile_picture if profile else None
         
         
 class BlogCreateSerializer(serializers.ModelSerializer):
     """Serializer for Blog model."""
     user = serializers.StringRelatedField(read_only=True) 
-    slug = serializers.SlugField(read_only=True)  
+    slug = serializers.SlugField(read_only=True)
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        default=list
+    )
+    reading_time = serializers.IntegerField(read_only=True) 
     
     class Meta:
         model = Blog
-        fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
-        read_only_fields = ['created_at', 'updated_at', 'slug']
+        fields = ['id', 'user', 'title', 'description', 'media', 'tags', 'reading_time', 'created_at', 'updated_at', 'slug']
+        read_only_fields = ['created_at', 'updated_at', 'slug', 'reading_time']
         
     def validate_title(self, value):
         """Ensure title is not empty."""
@@ -93,6 +105,19 @@ class BlogCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Description cannot be empty.")
         return value
     
+    def validate_tags(self, value):
+        """Validate and handle the tags input."""
+        if value is None:  
+            return []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Tags must be a list or a single string.")        
+        if any(not isinstance(tag, str) for tag in value):
+            raise serializers.ValidationError("Each tag must be a string.")
+        return value
+
+    
     def validate_media(self, value):
         """Validate that media is a list of valid URLs."""
         url_validator = URLValidator()
@@ -100,6 +125,9 @@ class BlogCreateSerializer(serializers.ModelSerializer):
             value = [value]
         elif not isinstance(value, list): 
             raise serializers.ValidationError("Media should be a list of URLs.")
+        
+        if not value:  
+            raise serializers.ValidationError("Media cannot be empty.")
         
         for url in value:
             if not isinstance(url, str):
@@ -118,11 +146,16 @@ class BlogCreateSerializer(serializers.ModelSerializer):
 class BlogUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating an existing blog."""
     slug = serializers.SlugField(read_only=True)  
-    user = serializers.StringRelatedField(read_only=True)  
+    user = serializers.StringRelatedField(read_only=True)
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        required=False,
+        default=list
+    ) 
 
     class Meta:
         model = Blog
-        fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+        fields = ['id', 'user', 'title', 'description', 'media', 'tags', 'created_at', 'updated_at', 'slug']
         read_only_fields = ['created_at', 'updated_at', 'slug']
         
     def validate_title(self, value):
@@ -135,6 +168,16 @@ class BlogUpdateSerializer(serializers.ModelSerializer):
         """Ensure description is not empty."""
         if not value.strip():
             raise serializers.ValidationError("Description cannot be empty.")
+        return value
+    
+    def validate_tags(self, value):
+        """Validate and handle the tags input."""
+        if isinstance(value, str):
+            value = [value]  
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Tags must be a list or a single string.")
+        if any(not isinstance(tag, str) for tag in value):
+            raise serializers.ValidationError("Each tag must be a string.")
         return value
 
     def validate_media(self, value):
@@ -172,7 +215,7 @@ class BlogListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Blog
-        fields = ['id', 'title', 'first_image', 'short_description', 'user_name', 'user_profile_picture']
+        fields = ['id', 'title', 'first_image', 'short_description', 'tags', 'reading_time', 'user_name', 'user_profile_picture', 'created_at', 'updated_at', 'slug']
     
     def get_first_image(self, obj):
         """Return the first image URL from the media field (if available)."""
@@ -198,13 +241,23 @@ class BlogDetailSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Blog
-        fields = ['id', 'user_name', 'user_profile_picture', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
-        read_only_fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'updated_at', 'slug']
+        fields = ['id', 'user_name', 'user_profile_picture', 'title', 'description', 'media', 'tags', 'reading_time', 'created_at', 'updated_at', 'slug']
+        read_only_fields = ['id', 'user', 'title', 'description', 'media', 'created_at', 'tags', 'reading_time', 'updated_at', 'slug']
 
     def get_user_profile_picture(self, obj):
         """Retrieve the user's profile picture."""
         profile = UserProfile.objects.filter(user=obj.user).first()
         return profile.profile_picture if profile else None
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer to return user profile details."""
+    email = serializers.EmailField(source='user.email', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = UserProfile
+        fields = ['email', 'username', 'profile_picture']
+
         
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating user profile."""

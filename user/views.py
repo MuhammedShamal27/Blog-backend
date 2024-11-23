@@ -3,6 +3,7 @@ from rest_framework.generics import CreateAPIView,RetrieveAPIView,ListAPIView,Up
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import NotFound
 from rest_framework import status
 from django.db import DatabaseError
 
@@ -81,7 +82,7 @@ class BlogUpdateView(UpdateAPIView):
     queryset = Blog.objects.all()
     serializer_class = BlogUpdateSerializer
     permission_classes = [IsAuthenticated]
-    lookup_field = 'id' 
+    lookup_field = 'slug' 
 
     def get_queryset(self):
         """Restrict updates to blogs owned by the authenticated user."""
@@ -151,7 +152,7 @@ class BlogDetailView(RetrieveAPIView):
     queryset = Blog.objects.all()  
     serializer_class = BlogDetailSerializer
     permission_classes = [IsAuthenticated]  
-    lookup_field = 'id'
+    lookup_field = 'slug'
 
     def get(self, request, *args, **kwargs):
         """Override the GET method to add custom response handling."""
@@ -162,7 +163,26 @@ class BlogDetailView(RetrieveAPIView):
             "data": serializer.data
         })
         
-        
+           
+class UserProfileView(RetrieveAPIView):
+    """API endpoint to retrieve user profile details."""
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        """Retrieve the profile of the logged-in user."""
+        try:
+            profile = UserProfile.objects.get(user=self.request.user)
+            if not profile.profile_picture:
+                profile.profile_picture = ""  
+            return profile
+        except UserProfile.DoesNotExist:
+            if not self.request.user.email or not self.request.user.username:
+                raise NotFound("User details are incomplete. Please provide email and username.")
+            return UserProfile(user=self.request.user, profile_picture="")
+
+    
 class UserProfileUpdateView(UpdateAPIView):
     """API view for updating user profile."""
     serializer_class = UserProfileUpdateSerializer
@@ -188,3 +208,24 @@ class UserProfileUpdateView(UpdateAPIView):
             {"message": "Failed to update profile.", "errors": serializer.errors},
             status=status.HTTP_400_BAD_REQUEST
         )
+        
+class UserLogoutView(APIView):
+    """API endpoint for user logout."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        """Invalidate the access and refresh tokens by blacklisting the refresh token."""
+        try:
+            refresh_token = request.data.get('refresh_token')
+            token = RefreshToken(refresh_token)
+            token.blacklist()  
+
+            return Response({
+                "message": "Logout successful."
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                "message": "Error during logout.",
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)

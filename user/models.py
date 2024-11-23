@@ -46,7 +46,7 @@ class CustomUser(AbstractBaseUser):
     
 class UserProfile(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE,related_name='User_profile')
-    profile_picture=models.CharField(max_length=255)
+    profile_picture=models.CharField(max_length=255, null=True, blank=True)
     
     def __str__(self):
         return self.user.email
@@ -57,6 +57,8 @@ class Blog(models.Model):
     title=models.CharField(max_length=255)
     description = models.TextField()
     media = models.JSONField()
+    tags = models.JSONField(default=list)
+    reading_time = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     slug = models.SlugField(unique=True, blank=True)  
@@ -64,7 +66,11 @@ class Blog(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.title)  
+        word_count = len(self.description.split()) if self.description else 0
+        reading_speed = 100  
+        self.reading_time = max(1, word_count // reading_speed)
         super().save(*args, **kwargs)
         
     def __str__(self):
         return self.title
+    
