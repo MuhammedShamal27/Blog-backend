@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
+import dj_database_url
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -32,7 +33,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'https://theblog-topaz.vercel.app']
 
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173","https://theblog-topaz.vercel.app/"]
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173","https://theblog-topaz.vercel.app"]
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
@@ -120,7 +121,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-import dj_database_url
+
 DATABASES = {
     'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
 }
