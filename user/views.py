@@ -29,6 +29,7 @@ class UserRegisterView(CreateAPIView):
         except Exception as e:
             return Response(
                 {"error":"An unexpected error occurred.","details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
         
@@ -50,7 +51,9 @@ class UserLoginView(APIView):
                 'access_token': access_token,
                 'refresh_token': refresh_token
             }, status=status.HTTP_200_OK)     
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "details": serializer.errors.get('non_field_errors', ["Invalid credentials."])
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     
 class UserHomePageView(APIView):
